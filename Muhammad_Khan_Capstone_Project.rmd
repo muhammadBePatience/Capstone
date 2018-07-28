@@ -1,0 +1,753 @@
+---
+title: "Muhammad_Khan_Capstone_Project(CMK-136)"
+author: "Muhammad Khan"
+date: "July 28, 2018"
+output:
+  pdf_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+1: Data Preperation 
+
+1.1 Install packeges and  load Libraries
+```{r}
+# -- I will use the following package to load the file from http url. ---
+#install.packages('RCurl')
+#install.package("GGally")
+#library(GGally)
+#install.packages("class")
+#install.packages("gmodels")
+library(RCurl) # getURL 
+library(ggplot2)
+library(e1071) 
+library(caret)
+library(boot) ## for Linear Model Validation
+# Needed to grow a tree
+library(rpart)
+# To draw a pretty tree (fancyRpartPlot function)
+library(rattle)
+library(randomForest) 
+library("xlsx")
+library(ROCR)
+```
+
+1.2 All Functions used in this RMD File
+```{r echo=TRUE}
+
+#--------Function for Testing NA,NAN and empty values of each attributes of Data Frame---- #
+check_Data = function(pattr_name,df){
+pattr_data = df[,pattr_name]
+mretna = 0
+mretnan = 0
+mretempty = 0
+mretnull = 0
+  mtotal_rows_in_data = nrow(df)
+  mretempty = sum(pattr_data =="")
+  mretna = sum(is.na(pattr_data))
+  mretnan = sum(is.nan(pattr_data))
+  mretnull = sum(is.null(pattr_data))
+  
+ 
+  mretna = if(!is.na(mretna)) {mretna} else {0}
+  mretnan = if(!is.na(mretnan)) {mretnan} else {0}
+  mretnull = if(!is.na(mretnull)) {mretnull} else {0}
+  mretempty = if(!is.na(mretempty)) {mretempty} else {0}
+  
+  mgooddata = mtotal_rows_in_data-(mretempty+mretna+mretnan+mretnull)
+  
+  mPerEmpty = ((mretempty/mtotal_rows_in_data) * 100)
+  mPerna    = ((mretna/mtotal_rows_in_data) * 100)  
+  mPernan   = ((mretnan/mtotal_rows_in_data) * 100)
+  mPernull  = ((mretnull/mtotal_rows_in_data) * 100)
+  mPergood  = ( 100- (mPerEmpty+mPerna+mPernan+mPernull) )  
+  
+  mPerna    = if(!is.na(mPerna)) {mPerna} else {0}
+  mPernan   = if(!is.na(mPernan)) {mPernan} else {0}
+  mPernull  = if(!is.na(mPernull)) {mPernull} else {0}
+  mPerEmpty = if(!is.na(mPerEmpty)) {mPerEmpty} else {0}
+  
+  
+return(data.frame(  Attribute_Name = c(pattr_name), Descriptions = c("Total_No_Of_Rows_In_DataSet","Good Data","Empty","NA","NAN","Null"), Count = c(mtotal_rows_in_data,mgooddata,mretempty,mretna,mretnan,mretnull),Percentage = c(100,mPergood,mPerEmpty,mPerna,mPernan,mPernull),stringsAsFactors = FALSE))
+}
+
+# ------- Function for plotting a graph of coorelatoin among the attributes ---- #
+panel.cor <- function(x, y, digits=2, prefix="", cex.cor) 
+{
+  usr <- par("usr"); on.exit(par(usr)) 
+  par(usr = c(0, 1, 0, 1)) 
+  r <- abs(cor(x, y)) 
+  txt <- format(c(r, 0.123456789), digits=digits)[1] 
+  txt <- paste(prefix, txt, sep="") 
+  if(missing(cex.cor)) cex <- 0.8/strwidth(txt) 
+  
+  test <- cor.test(x,y) 
+  # borrowed from printCoefmat
+  Signif <- symnum(test$p.value, corr = FALSE, na = FALSE, 
+                   cutpoints = c(0, 0.001, 0.01, 0.05, 0.1, 1),
+                   symbols = c("***", "**", "*", ".", " ")) 
+  
+  text(0.5, 0.5, txt, cex = cex * r) 
+  text(.8, .8, Signif, cex=cex, col=2) 
+}
+#-----End Of Correlatoin Test graph--- #
+
+glm.tune <- function(model, dataset) {
+  results <- data.frame()
+  for (q in seq(0.02, 0.65, by = 0.02)) {
+    fitted_values <- model$fitted.values
+    prediction <- ifelse(fitted_values >= q, "1", "0")                
+    cm <- confusionMatrix(prediction, dataset$Rained)
+    accuracy <- cm$overall["Accuracy"]
+    specificity <- cm$byClass["Specificity"]
+    results <- rbind(results, data.frame(cutoff=q, accuracy=accuracy, specificity = specificity))
+  }
+  rownames(results) <- NULL
+  results
+}
+##----- End of glm_tun function --------#
+
+
+```
+
+1.3  Load data file 
+```{r echo=TRUE}
+# --- Load data file stored in GitHub repository for this project ---
+FileURL <- getURL("https://raw.githubusercontent.com/muhammadBePatience/Capstone/master/Daily_Weather_Toronto.csv")
+data <- read.csv(text = FileURL,stringsAsFactors = FALSE)
+colnames(data)
+```
+
+1.4 Initial checkup of Data 
+```{r echo=TRUE}
+#Check class of each attribute of Data set
+
+(attributes_types <- sapply(data,class))
+summary(data)
+
+
+#check each Atrribute of Data Set for missing values , Row counts, empty values etc...---
+cc <-  (data.frame(colnames(data[0,])))  
+colnames(cc) = as.character("attribute")
+cc$attribute = as.character(cc$attribute)
+#class(cc)
+
+(Attribute_Status <- apply(cc ,1, function(x,y) check_Data(x,data)))
+
+
+#check individually each column of Data Set ---
+#check_Data("Total_Precip",Actual_Data)
+#check_Data("Total_Rain",Actual_Data)
+#check_Data("Max_Temp",Actual_Data)
+#check_Data("Min_Temp",Actual_Data)
+#check_Data("Mean_Temp",Actual_Data)
+#check_Data("Total_Precip",Actual_Data)
+#check_Data("Heat_Deg_Days",Actual_Data)
+#check_Data("Dir_of_Max_Gust",Actual_Data)
+#check_Data("Spd_of_Max_Gust",Actual_Data)
+
+
+#First make a copy of Original dataset.#
+Actual_Data <-data
+
+```
+
+1.5 Concrete decisions for data set  
+```{r echo=TRUE}
+
+# Based on the above information, i will do following additions and deletions of attributes of DataSet 
+
+#Based on this check_data function result, i will remove couple of variables..
+Actual_Data <- Actual_Data[c("Date.Time","Year","Month","Max_Temp","Min_Temp","Mean_Temp",
+                                  "Heat_Deg_Days","Total_Rain","Total_Precip")]
+
+#Rename Date.Time attribute to Date and change data type to Date data type
+dates = trimws(Actual_Data$Date.Time)
+dates = as.Date(dates)
+dates = data.frame(Date = dates)
+
+colnames(Actual_Data)[1] ="Date"
+Actual_Data$Date = dates$Date
+
+
+
+# NAs check #
+#Baesd on the above check_Data function result, I found NAs in one of the attribute "Total_Precip", It should be fix 
+#Updating Total_Percip attribute for NA values with mean(Total_Percip)
+Actual_Data$Total_Precip[is.na(data$Total_Precip)] <- mean(Actual_Data$Total_Precip,na.rm =TRUE)
+
+
+## In order to help visualization of Data Set,i decieded to add an extra variable called "Season", based on existing Date attribute, it will help to visualize the data, Its value depend upon the Date columns, Data type will be Factor, there will be four(4) level of this attribute, (Winter,Spring,Summer,Autumn)
+d = function(month_day) which(lut$month_day == month_day)
+lut = data.frame(all_dates = as.POSIXct("2012-01-01") + ((0:365) * 3600 * 24),
+                 season = NA)
+lut = within(lut, { month_day = strftime(all_dates, "%b-%d") })
+lut[c(d("Jan-01"):d("Mar-20"), d("Dec-21"):d("Dec-31")), "season"] = "Winter"
+lut[c(d("Mar-21"):d("Jun-20")), "season"] = "Spring"
+lut[c(d("Jun-21"):d("Sep-20")), "season"] = "Summer"
+lut[c(d("Sep-21"):d("Dec-20")), "season"] = "Autumn"
+rownames(lut) = lut$month_day
+
+dat = data.frame(dates = Actual_Data$Date + (0:11)*30)
+dat = within(dat, { 
+  season =  lut[strftime(dates, "%b-%d"), "season"] 
+})
+
+Actual_Data$Season = (dat$season)
+
+## Will add a varriable called month_name , based on the Month Varriable ## 
+monthnames = c("Jan","Feb","Mar","Apr","May",
+               "Jun","Jul","Aug","Sep","Oct",
+               "Nov","Dec")
+Actual_Data$Month_Name<- as.factor(monthnames[Actual_Data$Month])
+
+#Reordring the column names of Data Set 
+Actual_Data <- Actual_Data[c(1,2,3,11,10,4,5,6,7,8,9)]
+```
+
+1.6 Data Visualization 
+
+1.6.1 Lets visualize the data,so get more clear picture of data and then i will take some other decisions 
+```{r echo=TRUE}
+
+ggplot(Actual_Data, aes(Date,Total_Rain)) +
+  geom_point(aes(colour = Total_Rain)) +
+  geom_smooth(colour = "blue", size = 1) +
+  scale_colour_gradient2(low = "green", mid = "orange",high = "red", midpoint = 20) +
+  scale_y_continuous(breaks = seq(0,80,20)) +
+  xlab("Date") +
+  ylab("Rain (mm)") +
+  ggtitle("Daily rain amount")
+
+## Histogram Of Total_Rain Variable ## 
+ggplot(Actual_Data ,aes(Total_Rain)) + 
+  geom_histogram(binwidth = 1,colour = "blue", fill = "darkgrey") +
+  scale_x_continuous(breaks = seq(0.1,58,15)) +
+  scale_y_continuous(breaks = seq(0,225,25)) +
+  xlab("Rain (mm)") +
+  ylab ("Frequency (days)") +
+  ggtitle("Daily rain amount distribution")
+
+
+#Becuase attribute Total_Rain is left skewed, i will add a binary variable based on the Total_Rain attribute.
+
+#some more for data is balance or skewed ##
+
+#Heavily Left-skewed distribution
+(summary(Actual_Data$Total_Rain))
+# Left-skewness is still there after removing all the dry days
+summary(subset(Actual_Data, Total_Rain > 0)$Total_Rain)
+
+skewness(Actual_Data$Total_Rain)
+skewness(subset(Actual_Data, Total_Rain >0)$Total_Rain)
+
+nrow(subset(Actual_Data,Total_Rain==0) )
+
+nrow(subset(Actual_Data,Total_Rain>0) )
+
+Actual_Data$Rained <- as.factor(ifelse(Actual_Data$Total_Rain >= 1, 1, 0))
+```
+
+1.6.2 More visualization of Data attributes
+```{r echo=TRUE}
+#Total_Rain by Season 
+ggplot(Actual_Data, aes(Season,Total_Rain)) +
+  geom_jitter(aes(colour=Total_Rain), position = position_jitter(width = 0.2)) +
+  scale_colour_gradient2(low = "blue", mid = "red",high = "black", midpoint = 30) +
+  scale_y_continuous(breaks = seq(0,80,20)) +
+  xlab("Season") +
+  ylab ("Rain (mm)") +
+  ggtitle("Daily rain amount by season")
+
+
+#Historgram of Daily Rain
+colors = c("red", "yellow", "green", "violet", "orange",   "blue", "pink", "cyan")
+hist(Actual_Data$Total_Rain,
+     right=FALSE, col=colors, 
+     main = "Total Rain Distribution in Year",
+     xlab = "Rain in Milimeters",
+     xlim=c(0,70), ylim=c(0,1200),
+     las=1, 
+     breaks=c(50)
+)
+
+ggplot(Actual_Data,aes(Total_Rain)) + 
+  geom_histogram(binwidth = 1,colour = "blue", fill = "darkgrey") +
+  scale_x_continuous(breaks = seq(0,80,5)) +
+  scale_y_continuous(breaks = seq(0,225,25)) +
+  xlab("Rain (mm)") +
+  ylab ("Frequency (days)") +
+  ggtitle("Daily rain amount distribution")
+
+
+
+```
+
+1.7 Check Dry and Wet Days Ratio and outlier in attributes
+
+```{r }
+#Dry and wet days (absolute)
+#table(rained = Actual_Data$Rained) 
+# Dry and wet days (relative)
+prop.table(table(rained = Actual_Data$Rained))
+```
+
+
+1.8 Box Plots for varriables to see the outliner 
+
+```{r }
+boxplot(Actual_Data$Min_Temp,data=Actual_Data ,main="Minimum_Temp")
+boxplot(Actual_Data$Max_Temp,data=Actual_Data, main="Maximum_Temp")
+boxplot(Actual_Data$Mean_Temp,data=Actual_Data,main="Mean_Temp")
+boxplot(Actual_Data$Heat_Deg_Days,data=Actual_Data,main="Heat_Deg_Days")
+boxplot(Actual_Data$Total_Precip,data=Actual_Data,main="Total_Precipitation")
+boxplot(Actual_Data$Total_Rain,data=Actual_Data,main="Total_Rain")
+
+# Scatter plot for displaying correlation between Total_Rain and other attributes 
+plot(Actual_Data$Total_Rain~Actual_Data$Min_Temp,xlab="TotalRain",ylab="Minimum_Temperature")
+plot(Actual_Data$Total_Rain~Actual_Data$Total_Precip,xlab="TotalRain",ylab="Percipitation")
+plot(Actual_Data$Total_Rain~Actual_Data$Max_Temp,xlab="TotalRain",ylab="Maximum_Temperature")
+plot(Actual_Data$Total_Rain~Actual_Data$Heat_Deg_Days,xlab="TotalRain",ylab="Temp_Deg_Days")
+
+```
+
+```{r echo=TRUE}
+#ggplot(Actual_Data_Final,aes(Season)) +
+#  geom_bar(aes(fill = Rained), position = "fill") +
+#  geom_hline(aes(yintercept = prop.table(table(Actual_Data_Final$Rained))["No"]),
+#             colour = "blue",linetype = "dashed", size = 1) +
+#  annotate("text", x = 1, y = 0.30, label = "yr. w/o = 0.60", colour = "blue") +
+#  xlab("Season") +
+#  ylab ("Proportion") +
+#  ggtitle("Proportion of days without and with rain, by season")
+
+#round(prop.table(table(Season = Actual_Data_Final$Season, Rained= #Actual_Data_Final$Rained),1),2) 
+
+```
+
+1.9  Plotting a graph for checking a relationship among attributes of data 
+```{r echo=TRUE}
+
+Actual_Data_Featuers <- Actual_Data[,c("Total_Rain","Min_Temp","Max_Temp","Mean_Temp",
+                                       "Total_Precip","Heat_Deg_Days")]
+pairs(Actual_Data_Featuers, lower.panel=panel.smooth, upper.panel=panel.cor)
+#View(Actual_Data_Final)
+```
+
+1.10  Coorelaton Test 
+
+```{r echo=TRUE}
+#Note: Above plots shows the +ve coorleation, so do some coorelaton test # 
+
+cor.test(Actual_Data$Total_Rain, Actual_Data$Min_Temp,data=Actual_Data)
+cor.test(Actual_Data$Total_Rain, Actual_Data$Max_Temp,data=Actual_Data)
+cor.test(Actual_Data$Total_Rain, Actual_Data$Mean_Temp,data=Actual_Data)
+cor.test(Actual_Data$Total_Rain, Actual_Data$Total_Precip,data=Actual_Data)
+cor.test(Actual_Data$Total_Rain, Actual_Data$Heat_Deg_Days,data=Actual_Data)
+
+```
+
+1.11 Final Copy of Data Set
+
+```{r echo=TRUE}
+# make a final copy of the Data set #
+
+Actual_Data_Final = Actual_Data[c("Date","Year","Month","Max_Temp","Min_Temp","Mean_Temp",
+                                  "Heat_Deg_Days","Total_Rain","Total_Precip","Rained")]
+#colnames(Actual_Data_Final)[10] = "RainTomorrow"
+
+```
+
+2. Algorithm Preperatoin
+
+2.1 Preperatoin of Training and Testing Data Set
+```{r}
+set.seed(1235)
+
+Lin_Reg_Data <-   Actual_Data_Final[c("Month","Max_Temp","Min_Temp","Mean_Temp","Heat_Deg_Days",
+                                      "Total_Precip","Total_Rain")]
+index <- sample(1:nrow(Lin_Reg_Data),size = 0.7*nrow(Lin_Reg_Data)) 
+
+# subset weather to include only the elements in the index
+train <- Lin_Reg_Data[index,] 
+
+# subset weather to include all but the elements in the index
+test <- Lin_Reg_Data [-index,] 
+
+nrow(train)
+
+nrow(test)
+```
+
+2.2 Linear Regression Base Line Model 
+```{r}
+best.guess <- mean(train$Total_Rain) 
+
+RMSE.baseline <- sqrt(mean((best.guess-test$Total_Rain)^2))
+RMSE.baseline
+#5.381145
+
+MAE.baseline <- mean(abs(best.guess-test$Total_Rain))
+MAE.baseline
+#2.838545
+
+```
+
+2.2 Linear Regression Model 
+```{r}
+lin.reg <- lm(log(Total_Rain+1) ~ Mean_Temp+Max_Temp+Min_Temp+Heat_Deg_Days+Total_Precip, data = train)
+# Inspect the model
+summary(lin.reg)
+
+exp(lin.reg$coefficients["Total_Precip"])
+#Total_Precip 
+#    1.127142 
+
+exp(lin.reg$coefficients["Min_Temp"])
+# Min_Temp 
+# 0.5324336  
+
+
+# Apply the model to the testing data (i.e., make predictions) ...
+# (Don't forget to exponentiate the results to revert the log transformation)
+test.pred.lin <- exp(predict(lin.reg,test))-1
+
+RMSE.lin.reg <- sqrt(mean((test.pred.lin-test$Total_Rain)^2))
+RMSE.lin.reg 
+
+MAE.lin.reg <- mean(abs(test.pred.lin-test$Total_Rain))
+MAE.lin.reg
+
+```
+
+2.3 Applied Decision Tree Model
+
+```{r}
+##-- apply the decision tree here ##
+library(rpart)
+library(rattle)
+rt <- rpart(Total_Rain ~ Month   + Max_Temp + Min_Temp + Mean_Temp+Total_Precip+Heat_Deg_Days, data=train)
+test.pred.rtree <- predict(rt,test)
+
+RMSE.rtree <- sqrt(mean((test.pred.rtree-test$Total_Rain)^2))
+RMSE.rtree
+#1.627743
+MAE.rtree <- mean(abs(test.pred.rtree-test$Total_Rain))
+MAE.rtree
+#0.6907401
+
+printcp(rt)
+# Get the optimal CP programmatically...
+min.xerror <- rt$cptable[which.min(rt$cptable[,"xerror"]),"CP"]
+min.xerror
+# 0.01
+#Plot the Prune Tree #
+fancyRpartPlot(rt)
+
+# ...and use it to prune the tree
+rt.pruned <- prune(rt,cp = min.xerror) 
+
+#Plot the Prune Tree #
+fancyRpartPlot(rt.pruned)
+
+# Evaluate the new pruned tree on the test set
+test.pred.rtree.p <- predict(rt.pruned,test)
+RMSE.rtree.pruned <- sqrt(mean((test.pred.rtree.p-test$Total_Rain)^2))
+RMSE.rtree.pruned
+# 1.627743
+
+MAE.rtree.pruned <- mean(abs(test.pred.rtree.p-test$Total_Rain))
+MAE.rtree.pruned
+# 0.6907401
+
+
+```
+
+2.4 Applied Random Forest Alogorithm
+
+```{r}
+##-- apply the random forest here ##
+library(randomForest)
+set.seed(123)
+
+# Create a random forest with 1000 trees
+rf <- randomForest(Total_Rain ~ Month+ Max_Temp + Min_Temp + Mean_Temp+Total_Precip+
+                     Heat_Deg_Days, data = train, importance = TRUE, ntree=1000)
+ 
+# How many trees are needed to reach the minimum error estimate? 
+# This is a simple problem; it appears that about 100 trees would be enough. 
+which.min(rf$mse)
+#[1] 93
+# Plot rf to see the estimated error as a function of the number of trees
+# (not running it here)
+# plot(rf) 
+
+# Using the importance()  function to calculate the importance of each variable
+imp <- as.data.frame(sort(importance(rf)[,1],decreasing = TRUE),optional = T)
+names(imp) <- "% Inc MSE"
+imp
+
+# As usual, predict and evaluate on the test set
+test.pred.forest <- predict(rf,test)
+RMSE.forest <- sqrt(mean((test.pred.forest-test$Total_Rain)^2))
+RMSE.forest
+#1.006345
+ 
+MAE.forest <- mean(abs(test.pred.forest-test$Total_Rain))
+MAE.forest
+#0.2182462
+
+#We can see the accuracy improved when compared to the decision tree model, 
+#and is just about equal to the performance of the linear regression model. 
+#The Total_Precip was, once again, considered the most important predictor; 
+#it is estimated that, in the absence of that variable, the error would increase by 21.2%. 
+
+```
+
+3. Model Assesment and Comparison
+
+3.1 Create a data frame with the error metrics for each method and Compare
+
+```{r}
+accuracy <- data.frame(Method = c("Baseline","Linear Regression","Full tree","Pruned tree","Random forest"),
+                         RMSE   = c(RMSE.baseline,RMSE.lin.reg,RMSE.rtree,RMSE.rtree.pruned,RMSE.forest),
+                         MAE    = c(MAE.baseline,MAE.lin.reg,MAE.rtree,MAE.rtree.pruned,MAE.forest)) 
+
+
+# Round the values and print the table
+accuracy$RMSE <- round(accuracy$RMSE,2)
+accuracy$MAE <- round(accuracy$MAE,2) 
+accuracy
+
+
+# Create a data frame with the predictions for each method
+all.predictions <- data.frame(actual = test$Total_Rain,
+                              baseline = best.guess,
+                              linear.regression = test.pred.lin,
+                              full.tree = test.pred.rtree,
+                              pruned.tree = test.pred.rtree.p,
+                              random.forest = test.pred.forest)
+
+
+#head(all.predictions)
+
+
+# Needed to melt the columns with the gather() function 
+# tidyr is an alternative to the reshape2 package (see the end of Part3a) 
+library(tidyr)
+ 
+# Gather the prediction variables (columns) into a single row (i.e., wide to long)
+# Recall the ggplot2 prefers the long data format
+all.predictions <- gather(all.predictions,key = model,value = predictions,2:6)
+ 
+#head(all.predictions)
+
+#tail (all.predictions)
+
+
+
+#Predicted vs. actual for each model
+ggplot(data = all.predictions,aes(x = actual, y = predictions)) + 
+  geom_point(colour = "blue") + 
+  geom_abline(intercept = 0, slope = 1, colour = "red") +
+  geom_vline(xintercept = 23, colour = "green", linetype = "dashed") +
+  facet_wrap(~ model,ncol = 2) + 
+  coord_cartesian(xlim = c(0,70),ylim = c(0,70)) +
+  ggtitle("Predicted vs. Actual, by model")
+
+```
+
+4. Logistics Regression Applied 
+
+4.1 Apply Logistics Regression to same dataset and see how it behaves 
+
+```{r echo=TRUE}
+## Start Sampling Data here for Algorithim application ##
+# randomly pick 70% of the number of observations (365)
+set.seed(1234)
+
+#LR_Data
+LR_Data <-   Actual_Data_Final[c("Date","Year","Month","Max_Temp","Min_Temp","Mean_Temp","Heat_Deg_Days","Total_Precip","Total_Rain","Rained")]
+
+#LR_Data$Month <- as.factor(LR_Data$Month)
+#check cross tabulation of the Data
+#xtabs(~Rained+Month, data=LR_Data)
+
+
+#str(LR_Data)
+index <- sample(1:nrow(LR_Data),size = 0.7*nrow(LR_Data),replace = TRUE) 
+
+# subset weather to include only the elements in the index
+train <- LR_Data[index,] 
+
+# subset weather to include all but the elements in the index
+test <- LR_Data [-index,] 
+
+#check the row counts for test and train data
+nrow(train)
+nrow(test)
+
+# ----Apply Model here ---- #
+#Note: Because of fitted probabilities numerically 0 or 1 occured warning, i go step by step and learned that Total_Precip is causing an issue. Therefore i am removing this variable from formulla 
+
+model <- glm(Rained ~  Max_Temp + Min_Temp + Mean_Temp + Heat_Deg_Days  , data = train, family = binomial)
+
+# --- check Model Summary --- #
+summary(model)
+ 
+model
+
+```
+
+4.2 Prediction and Misclassificaiton  
+
+4.2.1 Prediction and Misclassification for Training Data
+
+```{r echo=TRUE}
+## Validation Starts here for Train Data ##
+##--- Prediction and Misclassification for Training Data 
+predicted_values <- predict(model, train,type = "response")
+
+prediction_train <- data.frame("RAIN" = c(1:nrow(train)))
+prediction_train$RAIN <- "1"
+
+#Before deciding the cutt off values, let see the optimum cut off value.
+glm.tune(model, train)
+
+#Because the our train data is scewed, Accuracy may be not a c
+prediction_train$RAIN[ predicted_values < 0.50] <- "0"
+
+prediction_train$RAIN <- as.factor(prediction_train$RAIN)
+
+p_tab_train<- table(prediction_train$RAIN, train$Rained)
+#Confusion Matrix
+tab_train <-confusionMatrix(prediction_train$RAIN, train$Rained)
+
+tab_train 
+#Misclassification Error#
+(Misclassificatoin_Error <- 1-sum(diag(p_tab_train))/sum(p_tab_train))
+
+```
+
+4.2.2 Prediction and Misclassification for Testing Data
+
+```{r echo=TRUE}
+
+##--- Prediction and Misclassification for Testing Data 
+predicted_values <- predict(model, test, type = "response")
+prediction_test <- data.frame(c(1:nrow(test)))
+colnames(prediction_test) <- c("RAIN")
+
+
+prediction_test$RAIN <- "1"
+
+prediction_test$RAIN[ predicted_values < 0.50] <- "0"
+ 
+prediction_test$RAIN <- as.factor(prediction_test$RAIN)
+ 
+p_tab_test<- table(prediction_test$RAIN, test$Rained)
+tab_test <-confusionMatrix(prediction_test$RAIN, test$Rained)
+tab_test
+1-sum(diag(p_tab_test))/sum(p_tab_test)
+
+```
+
+4.2.3 Visulaize the Prediction 
+
+```{r echo=TRUE}
+
+## Check the histogram of Probability for Training and Testing Data
+hist_train_p <- predict(model,train,type="response")
+hist_test_p <- predict(model,test,type="response")
+hist(hist_train_p)
+hist(hist_test_p)
+#ROC Curve
+#True positive rate 
+  # 1- Sensitivity
+  # 2- specificity
+
+p <- predict(model,train,type="response")
+pred <- prediction(p, train$Rained)
+roc <-performance(pred,"tpr","fpr")
+plot(roc, colorize=T, main="ROC Curve", xlab="1-Specificty", ylab = "Sensitivity")
+# make a line
+abline(a=0,b=1)
+
+## Check the chances of Rain ##
+chance_of_rain <- function(model, data_record){
+  chance_frac <- predict(model, data_record, type="response") ## "1" = "Yes"
+  paste(round(chance_frac*100), "%", sep="")
+}
+
+chance_of_rain(model, test[1:10,])
+chance_of_rain(model, test[100:110,])
+
+```
+
+
+5. Apply linear Regression only To Rain Data when Rain is happened, it means Rained = 1
+```{r echo=TRUE}
+LR_Data_For_LM = LR_Data[LR_Data$Total_Rain > 0,]
+rf_fit <- lm(Total_Rain ~  Min_Temp + Max_Temp + Mean_Temp  + Heat_Deg_Days -1, data = LR_Data_For_LM)
+summary(rf_fit)
+
+lm_pred <- predict(rf_fit, LR_Data_For_LM)
+plot(x = seq_along(LR_Data_For_LM$Total_Rain), y = LR_Data_For_LM$Total_Rain, type='p', xlab = "observations", ylab = "RainfallTomorrow")
+legend("topright", c("actual", "predicted"), fill = c("black", "red"))
+points(x = seq_along(LR_Data_For_LM$Total_Rain), y = lm_pred, col='red')
+
+```
+
+6. Final Report 
+```{r echo=TRUE}
+weather_report <- function(today_record, rain_tomorrow_model, cutoff) {
+  # RainTomorrow  prediction
+  rainTomorrow_prob <- predict(rain_tomorrow_model, today_record, type="response")
+  rainTomorrow_pred = ifelse(rainTomorrow_prob >= cutoff, "1", "0")
+  
+  # Rainfall prediction iff RainTomorrow prediction is Yes; chance of rain probability
+  rainfall_pred <- NA
+  chance_of_rain <- NA
+  if (rainTomorrow_pred == "1") {
+    rainfall_pred <- round(predict(rf_fit, today_record), 1)
+    chance_of_rain <- round(rainTomorrow_prob*100)
+  }
+  
+  # converting all numeric predictions to strings
+  if (is.na(rainfall_pred)) {
+    rainfall_pred_str <- "< 1 mm"
+  } else {
+    rainfall_pred_str <- paste(rainfall_pred, "mm", sep = " ")
+  }
+  
+  if (is.na(chance_of_rain)) {
+    chance_of_rain_str <- ""
+  } else {
+    chance_of_rain_str <- paste(chance_of_rain, "%", sep="")
+  }
+  
+ 
+  
+  report <- data.frame(Rainfall = rainfall_pred_str,ChanceOfRain = chance_of_rain_str)
+  report
+}
+
+(tomorrow_report <- weather_report(LR_Data[73,], model, 0.25))
+(tomorrow_report <- weather_report(LR_Data[32,], model, 0.25))
+(tomorrow_report <- weather_report(LR_Data[50,], model, 0.25))
+(tomorrow_report <- weather_report(LR_Data[100,], model, 0.25))
+(tomorrow_report <- weather_report(LR_Data[115,], model, 0.25))
+(tomorrow_report <- weather_report(LR_Data[253,], model, 0.25))
+(tomorrow_report <- weather_report(LR_Data[311,], model, 0.25))
+
+```
+
