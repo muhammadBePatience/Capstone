@@ -3,8 +3,8 @@ title: "Muhammad_Khan_Capstone_Project(CMK-136)"
 author: "Muhammad Khan"
 date: "July 28, 2018"
 output:
-  pdf_document: default
   word_document: default
+  pdf_document: default
 ---
 
 ```{r setup, include=FALSE}
@@ -312,11 +312,6 @@ boxplot(Actual_Data$Heat_Deg_Days,data=Actual_Data,main="Heat_Deg_Days")
 boxplot(Actual_Data$Total_Precip,data=Actual_Data,main="Total_Precipitation")
 boxplot(Actual_Data$Total_Rain,data=Actual_Data,main="Total_Rain")
 
-# Scatter plot for displaying correlation between Total_Rain and other attributes 
-plot(Actual_Data$Total_Rain~Actual_Data$Min_Temp,xlab="TotalRain",ylab="Minimum_Temperature")
-plot(Actual_Data$Total_Rain~Actual_Data$Total_Precip,xlab="TotalRain",ylab="Percipitation")
-plot(Actual_Data$Total_Rain~Actual_Data$Max_Temp,xlab="TotalRain",ylab="Maximum_Temperature")
-plot(Actual_Data$Total_Rain~Actual_Data$Heat_Deg_Days,xlab="TotalRain",ylab="Temp_Deg_Days")
 
 ```
 
@@ -335,10 +330,7 @@ plot(Actual_Data$Total_Rain~Actual_Data$Heat_Deg_Days,xlab="TotalRain",ylab="Tem
 ```
 
 1.9  Plotting a graph for checking a relationship among attributes of data 
-```{r echo=TRUE}
 
-Actual_Data_Featuers <- Actual_Data[,c("Total_Rain","Min_Temp","Max_Temp","Mean_Temp",
-                                       "Total_Precip","Heat_Deg_Days")]
 pairs(Actual_Data_Featuers, lower.panel=panel.smooth, upper.panel=panel.cor)
 #View(Actual_Data_Final)
 ```
@@ -356,15 +348,24 @@ cor.test(Actual_Data$Total_Rain, Actual_Data$Heat_Deg_Days,data=Actual_Data)
 
 ```
 
-1.11 Final Copy of Data Set
+1.11 Visualize Data
 
 ```{r echo=TRUE}
-# make a final copy of the Data set #
+plot(Actual_Data$Total_Rain~Actual_Data$Min_Temp,xlab="TotalRain",ylab="Minimum_Temperature")
+plot(Actual_Data$Total_Rain~Actual_Data$Total_Precip,xlab="TotalRain",ylab="Percipitation")
+plot(Actual_Data$Total_Rain~Actual_Data$Max_Temp,xlab="TotalRain",ylab="Maximum_Temperature")
+plot(Actual_Data$Total_Rain~Actual_Data$Heat_Deg_Days,xlab="TotalRain",ylab="Temp_Deg_Days")
+
+
+```
+
+
+1.12 Final Copy of Data Set
+
+```{r echo=TRUE}
 
 Actual_Data_Final = Actual_Data[c("Date","Year","Month","Max_Temp","Min_Temp","Mean_Temp",
                                   "Heat_Deg_Days","Total_Rain","Total_Precip","Rained")]
-#colnames(Actual_Data_Final)[10] = "RainTomorrow"
-
 ```
 
 2. Algorithm Preperatoin
@@ -483,13 +484,10 @@ set.seed(123)
 rf <- randomForest(Total_Rain ~ Month+ Max_Temp + Min_Temp + Mean_Temp+Total_Precip+
                      Heat_Deg_Days, data = train, importance = TRUE, ntree=1000)
  
-# How many trees are needed to reach the minimum error estimate? 
-# This is a simple problem; it appears that about 100 trees would be enough. 
+# Find out how many trees are needed to reach the minimum error estimate? 
 which.min(rf$mse)
 #[1] 93
-# Plot rf to see the estimated error as a function of the number of trees
-# (not running it here)
-# plot(rf) 
+
 
 # Using the importance()  function to calculate the importance of each variable
 imp <- as.data.frame(sort(importance(rf)[,1],decreasing = TRUE),optional = T)
@@ -623,7 +621,7 @@ prediction_train$RAIN <- "1"
 #Before deciding the cutt off values, let see the optimum cut off value.
 glm.tune(model, train)
 
-#Because the our train data is scewed, Accuracy may be not a c
+
 prediction_train$RAIN[ predicted_values < 0.50] <- "0"
 
 prediction_train$RAIN <- as.factor(prediction_train$RAIN)
@@ -660,7 +658,7 @@ tab_test
 1-sum(diag(p_tab_test))/sum(p_tab_test)
 
 ```
-
+f
 4.2.3 Visulaize the Prediction 
 
 ```{r echo=TRUE}
