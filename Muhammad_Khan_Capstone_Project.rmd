@@ -316,14 +316,15 @@ boxplot(Actual_Data$Total_Rain,data=Actual_Data,main="Total_Rain")
 ```
 
 ```{r echo=TRUE}
-#ggplot(Actual_Data_Final,aes(Season)) +
-#  geom_bar(aes(fill = Rained), position = "fill") +
-#  geom_hline(aes(yintercept = prop.table(table(Actual_Data_Final$Rained))["No"]),
-#             colour = "blue",linetype = "dashed", size = 1) +
-#  annotate("text", x = 1, y = 0.30, label = "yr. w/o = 0.60", colour = "blue") +
-#  xlab("Season") +
-#  ylab ("Proportion") +
-#  ggtitle("Proportion of days without and with rain, by season")
+Actual_Data_Featuers <- Actual_Data[,c("Rained","Season")]
+ggplot(Actual_Data,aes(Season)) +
+  geom_bar(aes(fill = Rained), position = "fill") +
+  geom_hline(aes(yintercept = prop.table(table(Actual_Data$Rained))["0"]),
+             colour = "blue",linetype = "dashed", size = 1) +
+  annotate("text", x = 1, y = 0.30, label = "yr. w/o = 0.60", colour = "blue") +
+  xlab("Season") +
+  ylab ("Proportion") +
+  ggtitle("Proportion of days without and with rain, by season")
 
 #round(prop.table(table(Season = Actual_Data_Final$Season, Rained= #Actual_Data_Final$Rained),1),2) 
 
@@ -331,7 +332,11 @@ boxplot(Actual_Data$Total_Rain,data=Actual_Data,main="Total_Rain")
 
 1.9  Plotting a graph for checking a relationship among attributes of data 
 
+```{r echo=TRUE}
+#pairs(Actual_Data, lower.panel=panel.smooth, upper.panel=panel.cor)
+Actual_Data_Featuers <- Actual_Data[,c("Total_Rain","Min_Temp","Max_Temp","Mean_Temp","Total_Precip","Heat_Deg_Days")]
 pairs(Actual_Data_Featuers, lower.panel=panel.smooth, upper.panel=panel.cor)
+
 #View(Actual_Data_Final)
 ```
 
